@@ -92,6 +92,8 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
 	free(buf);
 }
 
+
+
 void
 ether_encap_impl::from_tap(pmt::pmt_t msg) {
 	size_t len = pmt::blob_length(pmt::cdr(msg));
@@ -112,7 +114,11 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
 		buf[5] = 0x00;
 		buf[6] = 0x08;
 		buf[7] = 0x00;
+
+
+
 		std::memcpy(buf + 8, data + sizeof(ethernet_header), len - sizeof(ethernet_header));
+
 		pmt::pmt_t blob = pmt::make_blob(buf, len + 8 - sizeof(ethernet_header));
 		message_port_pub(pmt::mp("to wifi"), pmt::cons(pmt::PMT_NIL, blob));
 		break;
@@ -124,6 +130,7 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
 		std::cout << "unknown ether type" << std::endl;
 		break;
 	}
+
 
 }
 

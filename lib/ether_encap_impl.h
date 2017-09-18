@@ -28,6 +28,9 @@ namespace ieee802_11 {
 		uint16_t  type;
 	}__attribute__((packed));
 
+
+
+
 	class ether_encap_impl : public ether_encap {
 
 		public:
@@ -36,6 +39,7 @@ namespace ieee802_11 {
 		private:
 			void from_tap(pmt::pmt_t msg);
 			void from_wifi(pmt::pmt_t msg);
+
 
 			bool d_debug;
 			uint16_t d_last_seq;
