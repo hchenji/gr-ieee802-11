@@ -72,7 +72,7 @@ public:
 //    }
 
     void
-    print_decbytes(char *buf, int length) {
+    print_decbytes(uint8_t * buf, int length) {
 
         for (int i = 0; i < length; i++) {
 
@@ -116,7 +116,7 @@ public:
         print_ip(iph->daddr);
     }
 
-    void handle_tcp(uint8_t * buf) {
+    void handle_tcp(uint8_t *buf, uint8_t ihl, uint16_t tot_ip_len) {
 
         struct tcphdr * tcph = (struct tcphdr *) (buf);
 
@@ -127,6 +127,14 @@ public:
         printf("\tfin %u\trst %u\n", tcph->fin, tcph->rst);
 
         printf("\n");
+
+        uint8_t * data = buf + tcph->doff * 4;
+        uint32_t data_len = tot_ip_len - ihl * 4 - tcph->doff * 4;
+
+        printf("\tPayload length %u, data is:\n\t", data_len);
+        print_decbytes(data, data_len);
+
+
 
     }
 
@@ -223,7 +231,7 @@ public:
 
                 case 6: {
                     //  this is TCP
-                    handle_tcp(data);
+                    handle_tcp(data, ihl, ntohs(iph->tot_len));
                     break;
                 }
 
