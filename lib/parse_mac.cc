@@ -21,27 +21,15 @@
 #include <gnuradio/block_detail.h>
 #include <string>
 #include <arpa/inet.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
 
 using namespace gr::ieee802_11;
 
 class parse_mac_impl : public parse_mac {
 
 public:
-
-    struct ipv4_header {
-        //  NOTE: BYTES ARE IN BIG ENDIAN FORMAT. CONVERT TO HOST ENDIANNESS YOURSELF
-        uint8_t  version_ihl;
-        uint8_t  dscp_ecn;
-        uint16_t  total_length;
-        uint16_t  id;
-        uint16_t  flags_fragoffset;
-        uint8_t  ttl;
-        uint8_t  protocol;
-        uint16_t  header_checksum : 16;
-        uint8_t  src_ip[4];
-        uint8_t  dst_ip[4];
-    }__attribute__((packed));
-
 
     parse_mac_impl(bool log, bool debug) :
             block("parse_mac",
@@ -99,12 +87,53 @@ public:
     }
 
     void
-    print_ip(const uint8_t * buf) {
+    print_ip(const uint8_t *buf) {
 
         for (int i = 0; i < 4; i++) {
             printf("%u.", (unsigned char) buf[i]);
         }
         std::cout << std::endl;
+    }
+
+    void print_ipv4(struct iphdr *iph) {
+
+        printf("version: %u\n", iph->version);
+        printf("IHL: %u\n", iph->ihl);
+        printf("dscp: %u\n", iph->tos >> 2);
+        printf("ECN: %u\n", iph->tos & 0x03);
+        printf("length: %d\n", ntohs(iph->tot_len));
+        printf("ID: %u\n", ntohs(iph->id));
+        printf("flags: %u\n", ntohs(iph->fragoff) >> 13);
+        printf("fragoffset: %hu\n", ntohs(iph->fragoff) & 0x1FFF);
+        printf("TTL: %d\n", iph->ttl);
+        printf("protocol: %u\n", iph->protocol);
+
+        printf("\nsrc IP: ");
+        print_ip(iph->saddr);
+
+        printf("\ndst IP: ");
+        print_ip(iph->daddr);
+    }
+
+    void handle_tcp(uint8_t * buf) {
+
+        struct tcphdr * tcph = (struct tcphdr *) (buf);
+
+        printf("\n\n>>> TCP header\n");
+        printf("src\t%u", tcp->source);
+        printf("dst\t%u", tcp->dest);
+        printf("seq\t%u", tcp->seq);
+        printf("ack\t%u", tcp->ack_seq);
+
+    }
+
+    void handle_udp(uint8_t * buf) {
+
+        struct udphdr * udph = (struct udphdr *) (buf);
+
+        printf("\n\n>>> UDP header\n");
+        printf("src\t%u", udph->source);
+        printf("dst\t%u", udph->dest);
     }
 
     void parse(pmt::pmt_t msg) {
@@ -159,46 +188,55 @@ public:
         // DATA
         if ((((h->frame_control) >> 2) & 63) == 2) {
 
-
+            //  sizeof mac_header is 24
             print_ascii(frame + 24, data_len - 24);
 
-            // IMPORTANT: first 8 bytes have some hardcoded values
+            // IMPORTANT: first 8 bytes are LLC header. ip packet starts at frame+sizeof(mac_header)+sizeof(llc_header) = frame+24+8=32
+            struct llc_header * lhdr = (struct llc_header *) (frame + 24);
 
+            //  EtherType for IP is 0x0800
+            if (0x0800 != ntohs(lhdr->type))
+                return;
 
+            //  there is an IP packet inside this frame
             printf("------------------------------------------------------\n\n");
+
 //            printf("raw decimal bytes\n");
 //            print_decbytes(frame + 24 + 8, data_len - 24 - 8);
-
 
             printf("all hex bytes\n");
             print_allascii(frame + 24 + 8, data_len - 24 - 8);
 
-            const ipv4_header * ipv4hdr = (ipv4_header *) (frame + 24 + 8);
+            struct iphdr *iph;
 
-            printf("version: %u\n", ipv4hdr->version_ihl >> 4);
-            printf("IHL: %u\n", ipv4hdr->version_ihl & 0x0F);
-            printf("dscp: %u\n", ipv4hdr->dscp_ecn >> 2);
-            printf("ECN: %u\n", ipv4hdr->dscp_ecn & 0x03);
-            printf("length: %d\n", ntohs(ipv4hdr->total_length));
-            printf("ID: %u\n", ntohs(ipv4hdr->id));
-            printf("flags: %u\n", ntohs(ipv4hdr->flags_fragoffset) >> 13);
-            printf("fragoffset: %hu\n", ntohs(ipv4hdr->flags_fragoffset) & 0x1FFF);
-            printf("TTL: %d\n", ipv4hdr->ttl);
-            printf("protocol: %u\n", ipv4hdr->protocol);
+            iph = (struct iphdr *) (frame + 24 + 8);
 
-            printf("\nsrc IP: ");
-            print_ip(ipv4hdr->src_ip);
-
-            printf("\ndst IP: ");
-            print_ip(ipv4hdr->dst_ip);
+            print_ipv4(iph);
 
             uint8_t ihl = ipv4hdr->version_ihl & 0x0F;
 
-            uint8_t * data = frame + 24 + 8 + ihl * 4;
+            uint8_t *data = frame + 24 + 8 + ihl * 4;
 
+            switch (iph->protocol) {
+
+                case 6: {
+                    //  this is TCP
+                    handle_tcp(data);
+                    break;
+                }
+
+                case 17: {
+                    //  this is UDP
+                    handle_udp(data);
+                    break;
+                }
+
+                default:
+                    printf("not TCP or IP\n");
+                    break;
+            }
 
             printf("------------------------------------------------------\n");
-
 
             // QoS Data
         } else if ((((h->frame_control) >> 2) & 63) == 34) {
@@ -246,7 +284,7 @@ public:
                     return;
                 }
                 {
-                    uint8_t *len = (uint8_t *) (buf + 24 + 13);
+                    uint8_t *len = (uint8_t * )(buf + 24 + 13);
                     if (length < 38 + *len) {
                         return;
                     }
