@@ -87,31 +87,32 @@ public:
     }
 
     void
-    print_ip(const uint8_t *buf) {
+    print_ip(__be32 addr) {
 
         for (int i = 0; i < 4; i++) {
-            printf("%u.", (unsigned char) buf[i]);
+            printf("%u.", ((unsigned char *) &addr)[i]);
         }
         std::cout << std::endl;
     }
 
     void print_ipv4(struct iphdr *iph) {
 
-        printf("version: %u\n", iph->version);
-        printf("IHL: %u\n", iph->ihl);
-        printf("dscp: %u\n", iph->tos >> 2);
-        printf("ECN: %u\n", iph->tos & 0x03);
-        printf("length: %d\n", ntohs(iph->tot_len));
-        printf("ID: %u\n", ntohs(iph->id));
-        printf("flags: %u\n", ntohs(iph->fragoff) >> 13);
-        printf("fragoffset: %hu\n", ntohs(iph->fragoff) & 0x1FFF);
-        printf("TTL: %d\n", iph->ttl);
-        printf("protocol: %u\n", iph->protocol);
+        printf("\t>>>> IPv4 header\n");
+        printf("\tversion: %u\n", iph->version);
+        printf("\tIHL: %u\n", iph->ihl);
+        printf("\tdscp: %u\n", iph->tos >> 2);
+        printf("\tECN: %u\n", iph->tos & 0x03);
+        printf("\tlength: %d\n", ntohs(iph->tot_len));
+        printf("\tID: %u\n", ntohs(iph->id));
+        printf("\tflags: %u\n", ntohs(iph->frag_off) >> 13);
+        printf("\tfragoffset: %hu\n", ntohs(iph->frag_off) & 0x1FFF);
+        printf("\tTTL: %d\n", iph->ttl);
+        printf("\tprotocol: %u\n", iph->protocol);
 
-        printf("\nsrc IP: ");
+        printf("\tsrc IP: ");
         print_ip(iph->saddr);
 
-        printf("\ndst IP: ");
+        printf("\tdst IP: ");
         print_ip(iph->daddr);
     }
 
@@ -119,11 +120,13 @@ public:
 
         struct tcphdr * tcph = (struct tcphdr *) (buf);
 
-        printf("\n\n>>> TCP header\n");
-        printf("src\t%u", tcp->source);
-        printf("dst\t%u", tcp->dest);
-        printf("seq\t%u", tcp->seq);
-        printf("ack\t%u", tcp->ack_seq);
+        printf("\n\t>>> TCP header\n");
+        printf("\tsrc %u\tdst %u\n", ntohs(tcph->source), ntohs(tcph->dest));
+        printf("\tseq %u\tack %u\n", ntohl(tcph->seq), ntohl(tcph->ack_seq));
+        printf("\tsyn %u\tack %u\n", tcph->syn, tcph->ack);
+        printf("\tfin %u\trst %u\n", tcph->fin, tcph->rst);
+
+        printf("\n");
 
     }
 
@@ -131,9 +134,8 @@ public:
 
         struct udphdr * udph = (struct udphdr *) (buf);
 
-        printf("\n\n>>> UDP header\n");
-        printf("src\t%u", udph->source);
-        printf("dst\t%u", udph->dest);
+        printf("\n\t>>> UDP header\n");
+        printf("\tsrc %u\tdst %u\n", ntohs(udph->source), ntohs(udph->dest));
     }
 
     void parse(pmt::pmt_t msg) {
@@ -204,8 +206,8 @@ public:
 //            printf("raw decimal bytes\n");
 //            print_decbytes(frame + 24 + 8, data_len - 24 - 8);
 
-            printf("all hex bytes\n");
-            print_allascii(frame + 24 + 8, data_len - 24 - 8);
+//            printf("\tall hex bytes\n\t");
+//            print_allascii(frame + 24 + 8, data_len - 24 - 8);
 
             struct iphdr *iph;
 
@@ -213,9 +215,9 @@ public:
 
             print_ipv4(iph);
 
-            uint8_t ihl = ipv4hdr->version_ihl & 0x0F;
+            uint8_t ihl = iph->ihl;
 
-            uint8_t *data = frame + 24 + 8 + ihl * 4;
+            uint8_t *data = reinterpret_cast<uint8_t *>(frame + 24 + 8 + ihl * 4);
 
             switch (iph->protocol) {
 
@@ -232,7 +234,7 @@ public:
                 }
 
                 default:
-                    printf("not TCP or IP\n");
+                    printf("\n\tnot TCP or IP!!\n");
                     break;
             }
 
