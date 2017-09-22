@@ -311,7 +311,7 @@ void print_ipv4(uint8_t * data) {
 
 	struct iphdr * iph = (struct iphdr *) (data);
 
-	printf("\t>>>> IPv4 header\n");
+	printf("\t>>>> IPv4 header of size %u bytes\n", (iph->ihl) * 4);
 	printf("\tversion: %u\n", iph->version);
 	printf("\tIHL: %u\n", iph->ihl);
 	printf("\tdscp: %u\n", iph->tos >> 2);
@@ -334,7 +334,7 @@ void handle_tcp(uint8_t *buf, uint8_t ihl, uint16_t tot_ip_len) {
 
 	struct tcphdr * tcph = (struct tcphdr *) (buf);
 
-	printf("\n\t>>> TCP header\n");
+	printf("\n\t>>> TCP header of size %u bytes\n", (tcph->doff) * 4);
 	printf("\tsrc %u\tdst %u\n", ntohs(tcph->source), ntohs(tcph->dest));
 	printf("\tseq %u\tack %u\n", ntohl(tcph->seq), ntohl(tcph->ack_seq));
 	printf("\tsyn %u\tack %u\n", tcph->syn, tcph->ack);
@@ -354,6 +354,16 @@ void handle_udp(uint8_t * buf) {
 
 	struct udphdr * udph = (struct udphdr *) (buf);
 
-	printf("\n\t>>> UDP header\n");
+	printf("\n\t>>> UDP header of size 8 bytes\n");
 	printf("\tsrc %u\tdst %u\n", ntohs(udph->source), ntohs(udph->dest));
+    printf("\ttot_len %u\tchk %u\n", ntohs(udph->len), udph->check);
+
+	printf("\n");
+
+	uint8_t * data = buf + 8;
+	uint32_t data_len = ntohs(udph->len) - 8; // UDP length field INCLUDES the header
+
+	printf("\tPayload length %u, data is:\n\t", data_len);
+	print_decbytes(data, data_len);
+
 }
