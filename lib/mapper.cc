@@ -58,13 +58,14 @@ void print_message(const char *msg, size_t len) {
 }
 
 
-int general_work(int noutput, gr_vector_int& ninput_items,
+int
+general_work(int noutput, gr_vector_int& ninput_items,
 			gr_vector_const_void_star& input_items,
 			gr_vector_void_star& output_items ) {
 
 	unsigned char *out = (unsigned char*)output_items[0];
-	dout << "MAPPER called offset: " << d_symbols_offset <<
-		"   length: " << d_symbols_len << std::endl;
+//	dout << "MAPPER called offset: " << d_symbols_offset <<
+//		"   length: " << d_symbols_len << std::endl;
 
 	while(!d_symbols_offset) {
 		pmt::pmt_t msg(delete_head_nowait(pmt::intern("in")));
@@ -160,7 +161,10 @@ int general_work(int noutput, gr_vector_int& ninput_items,
 		d_symbols = 0;
 	}
 
-	return i;
+    dout << "MAPPER: done" << std::endl;
+
+
+    return i;
 }
 
 void set_encoding(Encoding encoding) {

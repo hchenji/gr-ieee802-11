@@ -30,8 +30,6 @@ ether_encap_impl::ether_encap_impl(bool debug) :
         d_debug(debug),
         d_last_seq(123) {
 
-    d_debug = false;
-
     message_port_register_out(pmt::mp("to tap"));
     message_port_register_out(pmt::mp("to wifi"));
 
@@ -50,6 +48,8 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
 
 
     const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
+
+    print_mac_header(mhdr);
 
     if (d_last_seq == mhdr->seq_nr) {
         dout << "Ether Encap: frame already seen -- skipping" << std::endl;
@@ -88,33 +88,11 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
         //  skip mac_header (24 bytes of wifi header) and the LLC header (8 bytes)
         data += (24 + 8);
 
+
         std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
-        print_ipv4(data);
 
-        struct iphdr *iph = (struct iphdr *) (data);
+        investigate_packet(data);
 
-        uint8_t ihl = iph->ihl;
-
-        uint8_t * transport_payload = (uint8_t *) (data + ihl * 4);
-
-        switch (iph->protocol) {
-
-            case 6: {
-                //  this is TCP
-                handle_tcp(transport_payload, ihl, ntohs(iph->tot_len));
-                break;
-            }
-
-            case 17: {
-                //  this is UDP
-                handle_udp(transport_payload);
-                break;
-            }
-
-            default:
-                printf("\n\tnot TCP or IP!!\n");
-                break;
-        }
 
         std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
@@ -147,32 +125,8 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
     std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
     std::cout << "this is the packet of len " << len << " in the from_tap function" << std::endl;
-    print_ipv4((uint8_t *) (data + sizeof(ethernet_header)));
 
-    struct iphdr *iph = (struct iphdr *) (data + sizeof(ethernet_header));
-
-    uint8_t ihl = iph->ihl;
-
-    uint8_t * transport_payload = (uint8_t *) (data + sizeof(ethernet_header) + ihl * 4);
-
-    switch (iph->protocol) {
-
-        case 6: {
-            //  this is TCP
-            handle_tcp(transport_payload, ihl, ntohs(iph->tot_len));
-            break;
-        }
-
-        case 17: {
-            //  this is UDP
-            handle_udp(transport_payload);
-            break;
-        }
-
-        default:
-            printf("\n\tnot TCP or IP!!\n");
-            break;
-    }
+    investigate_packet((uint8_t *) (data + sizeof(ethernet_header)));
 
     std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
@@ -211,6 +165,46 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
 
 
 }
+
+void ether_encap_impl::investigate_packet(uint8_t *data) {
+
+    print_ipv4(data);
+
+    struct iphdr *iph = (struct iphdr *) (data);
+
+    uint8_t ihl = iph->ihl;
+
+    uint8_t * transport_payload = (uint8_t *) (data + ihl * 4);
+
+    switch (iph->protocol) {
+
+        case 1: {
+            //  this is ICMP
+            handle_icmp(transport_payload, ihl, ntohs(iph->tot_len));
+            break;
+        }
+
+        case 6: {
+            //  this is TCP
+            handle_tcp(transport_payload, ihl, ntohs(iph->tot_len));
+            break;
+        }
+
+        case 17: {
+            //  this is UDP
+            handle_udp(transport_payload);
+            break;
+        }
+
+        default:
+            printf("\n\tnot TCP or IP!!\n");
+            break;
+    }
+
+
+}
+
+
 
 ether_encap::sptr
 ether_encap::make(bool debug) {

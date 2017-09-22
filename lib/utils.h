@@ -27,6 +27,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <arpa/inet.h>
+#include <linux/icmp.h>
 
 
 
@@ -142,5 +143,10 @@ void print_ipv4(uint8_t * data) ;
 void handle_tcp(uint8_t *buf, uint8_t ihl, uint16_t tot_ip_len);
 
 void handle_udp(uint8_t * buf);
+
+void handle_icmp(uint8_t *payload, uint8_t ihl, uint16_t tot_len);
+
+void print_mac_header(const struct mac_header * mhdr);
+
 
 #endif /* INCLUDED_IEEE802_11_UTILS_H */

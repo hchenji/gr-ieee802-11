@@ -77,7 +77,7 @@ void phy_in (pmt::pmt_t msg) {
 //	std::cout << "pdu len " << pmt::blob_length(blob) << std::endl;
 	pmt::pmt_t msdu = pmt::make_blob(mpdu + 24, pmt::blob_length(blob) - 24);
 
-	message_port_pub(pmt::mp("app out"), pmt::cons(pmt::car(msg), msdu));
+//	message_port_pub(pmt::mp("app out"), pmt::cons(pmt::car(msg), msdu));
 }
 
 void app_in (pmt::pmt_t msg) {
@@ -85,6 +85,8 @@ void app_in (pmt::pmt_t msg) {
 	size_t       msg_len;
 	const char   *msdu;
 	std::string  str;
+
+	//	at this point, msg contains the LLC header only. ethernet header is stripped out in ether_encap_impl
 
 	if(pmt::is_symbol(msg)) {
 
@@ -125,8 +127,8 @@ void generate_mac_data_frame(const char *msdu, int msdu_size, int *psdu_size) {
 
 	// mac header
 	mac_header header;
-	header.frame_control = 0x0008;
-	header.duration = 0x0000;
+	header.frame_control = htons(0x0008);
+	header.duration = htons(0x0000);
 
 	for(int i = 0; i < 6; i++) {
 		header.addr1[i] = d_dst_mac[i];
@@ -140,11 +142,11 @@ void generate_mac_data_frame(const char *msdu, int msdu_size, int *psdu_size) {
 			header.seq_nr |=  (1 << (i + 4));
 		}
 	}
-	header.seq_nr = htole16(header.seq_nr);
+	header.seq_nr = htons(header.seq_nr);
 	d_seq_nr++;
 
-	//header size is 24, plus 4 for FCS means 28 bytes
-	*psdu_size = 28 + msdu_size;
+	//header size is 24 (mac_header), plus 4 for FCS means 28 bytes
+	*psdu_size = sizeof(mac_header) + 4 + msdu_size;
 
 	//copy mac header into psdu
 	std::memcpy(d_psdu, &header, 24);

@@ -367,3 +367,22 @@ void handle_udp(uint8_t * buf) {
 	print_decbytes(data, data_len);
 
 }
+
+void handle_icmp(uint8_t *payload, uint8_t ihl, uint16_t tot_len) {
+
+	struct icmphdr * icmph = (struct icmphdr *) (payload);
+
+	printf("\n\t>>> ICMP header\n");
+	printf("\ttype %u\tcode %u\n", icmph->type, icmph->code);
+	printf("\n");
+
+}
+
+void print_mac_header(const struct mac_header * mhdr) {
+
+    printf("\n\t>>> 802.11 MAC header\n");
+    printf("\tframecont %u\tduration %u\tseqnr %u\n", ntohs(mhdr->frame_control), ntohs(mhdr->duration), ntohs(mhdr->seq_nr));
+
+    printf("\n");
+
+}
