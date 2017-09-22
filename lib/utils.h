@@ -23,6 +23,13 @@
 #include <cinttypes>
 #include <iostream>
 
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <arpa/inet.h>
+
+
+
 #define MAX_PAYLOAD_SIZE 1500
 #define MAX_PSDU_SIZE (MAX_PAYLOAD_SIZE + 28) // MAC, CRC
 #define MAX_SYM (((16 + 8 * MAX_PSDU_SIZE + 6) / 24) + 1)
@@ -54,20 +61,6 @@ struct llc_header {
 	uint8_t org_code[3];
 	uint16_t type;
 }__attribute__((packed));
-
-//    struct ipv4_header {
-//        //  NOTE: BYTES ARE IN BIG ENDIAN FORMAT. CONVERT TO HOST ENDIANNESS YOURSELF
-//        uint8_t version_ihl;
-//        uint8_t dscp_ecn;
-//        uint16_t total_length;
-//        uint16_t id;
-//        uint16_t flags_fragoffset;
-//        uint8_t ttl;
-//        uint8_t protocol;
-//        uint16_t header_checksum : 16;
-//        uint8_t src_ip[4];
-//        uint8_t dst_ip[4];
-//    }__attribute__((packed));
 
 /**
  * WIFI parameters
@@ -136,5 +129,18 @@ void interleave(const char *input, char *out, frame_param &frame, ofdm_param &of
 void split_symbols(const char *input, char *out, frame_param &frame, ofdm_param &ofdm);
 
 void generate_bits(const char *psdu, char *data_bits, frame_param &frame);
+
+
+void print_allascii(char *buf, int length) ;
+
+void print_decbytes(uint8_t * buf, int length) ;
+
+void print_ip(__be32 addr) ;
+
+void print_ipv4(uint8_t * data) ;
+
+void handle_tcp(uint8_t *buf, uint8_t ihl, uint16_t tot_ip_len);
+
+void handle_udp(uint8_t * buf);
 
 #endif /* INCLUDED_IEEE802_11_UTILS_H */

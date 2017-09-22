@@ -30,6 +30,8 @@ ether_encap_impl::ether_encap_impl(bool debug) :
         d_debug(debug),
         d_last_seq(123) {
 
+    d_debug = false;
+
     message_port_register_out(pmt::mp("to tap"));
     message_port_register_out(pmt::mp("to wifi"));
 
@@ -45,6 +47,8 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
     msg = pmt::cdr(msg);
 
     int data_len = pmt::blob_length(msg);
+
+
     const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
 
     if (d_last_seq == mhdr->seq_nr) {
@@ -77,6 +81,45 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
     // DATA
     if ((((mhdr->frame_control) >> 2) & 63) == 2) {
 
+        //  print out the ethernet header
+        std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+        uint8_t * data = (uint8_t *) (pmt::blob_data(msg));
+
+        //  skip mac_header (24 bytes of wifi header) and the LLC header (8 bytes)
+        data += (24 + 8);
+
+        std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
+        print_ipv4(data);
+
+        struct iphdr *iph = (struct iphdr *) (data);
+
+        uint8_t ihl = iph->ihl;
+
+        uint8_t * transport_payload = (uint8_t *) (data + ihl * 4);
+
+        switch (iph->protocol) {
+
+            case 6: {
+                //  this is TCP
+                handle_tcp(transport_payload, ihl, ntohs(iph->tot_len));
+                break;
+            }
+
+            case 17: {
+                //  this is UDP
+                handle_udp(transport_payload);
+                break;
+            }
+
+            default:
+                printf("\n\tnot TCP or IP!!\n");
+                break;
+        }
+
+        std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+
+
+
         //	strip 802.11 header, add wired 802.11 header for tun/tap interface
         memcpy(buf + sizeof(ethernet_header), frame + 32, data_len - 32);
         pmt::pmt_t payload = pmt::make_blob(buf, data_len - 32 + 14);
@@ -99,6 +142,39 @@ void
 ether_encap_impl::from_tap(pmt::pmt_t msg) {
     size_t len = pmt::blob_length(pmt::cdr(msg));
     const char *data = static_cast<const char *>(pmt::blob_data(pmt::cdr(msg)));
+
+    //  print out the ethernet header
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+
+    std::cout << "this is the packet of len " << len << " in the from_tap function" << std::endl;
+    print_ipv4((uint8_t *) (data + sizeof(ethernet_header)));
+
+    struct iphdr *iph = (struct iphdr *) (data + sizeof(ethernet_header));
+
+    uint8_t ihl = iph->ihl;
+
+    uint8_t * transport_payload = (uint8_t *) (data + sizeof(ethernet_header) + ihl * 4);
+
+    switch (iph->protocol) {
+
+        case 6: {
+            //  this is TCP
+            handle_tcp(transport_payload, ihl, ntohs(iph->tot_len));
+            break;
+        }
+
+        case 17: {
+            //  this is UDP
+            handle_udp(transport_payload);
+            break;
+        }
+
+        default:
+            printf("\n\tnot TCP or IP!!\n");
+            break;
+    }
+
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
     const ethernet_header *ehdr = reinterpret_cast<const ethernet_header *>(data);
 
