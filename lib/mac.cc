@@ -127,8 +127,17 @@ void generate_mac_data_frame(const char *msdu, int msdu_size, int *psdu_size) {
 
 	// mac header
 	mac_header header;
-	header.frame_control = htons(0x0008);
-	header.duration = htons(0x0000);
+
+    //  802.11 follows little endian byte order
+    //  the diagrams showing the frame layout have bit order increasing from left to right, even in multi-byte fields
+    //  the LSByte is version/type/subtype, the MSByte is flags
+    //  the byte with lower memory address is sent out on the wire first
+    //  in wireshark display, the memory addresses increase from left to right. so the first byte you see is the LSByte
+    //  so wireshark will show you 0x0800 as the frame control field
+    //  see http://www.cas.mcmaster.ca/~rzheng/course/CAS765fa13/hw3.pdf
+
+	header.frame_control = htole16(0x0008);
+	header.duration = htole16(0x0000);
 
 	for(int i = 0; i < 6; i++) {
 		header.addr1[i] = d_dst_mac[i];
@@ -142,7 +151,7 @@ void generate_mac_data_frame(const char *msdu, int msdu_size, int *psdu_size) {
 			header.seq_nr |=  (1 << (i + 4));
 		}
 	}
-	header.seq_nr = htons(header.seq_nr);
+	header.seq_nr = htole16(header.seq_nr);
 	d_seq_nr++;
 
 	//header size is 24 (mac_header), plus 4 for FCS means 28 bytes

@@ -148,5 +148,6 @@ void handle_icmp(uint8_t *payload, uint8_t ihl, uint16_t tot_len);
 
 void print_mac_header(const struct mac_header * mhdr);
 
+bool check_ip_eq(__be32 addr, uint8_t * add1);
 
 #endif /* INCLUDED_IEEE802_11_UTILS_H */

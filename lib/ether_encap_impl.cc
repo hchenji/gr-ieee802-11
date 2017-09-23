@@ -49,7 +49,6 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
 
     const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
 
-    print_mac_header(mhdr);
 
     if (d_last_seq == mhdr->seq_nr) {
         dout << "Ether Encap: frame already seen -- skipping" << std::endl;
@@ -81,15 +80,27 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
     // DATA
     if ((((mhdr->frame_control) >> 2) & 63) == 2) {
 
-        //  print out the ethernet header
-        std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
         uint8_t * data = (uint8_t *) (pmt::blob_data(msg));
 
         //  skip mac_header (24 bytes of wifi header) and the LLC header (8 bytes)
         data += (24 + 8);
 
+        struct iphdr *iph = (struct iphdr *) (data);
+
+        uint8_t myip[] = {192, 168, 200, 1};
+        if (! check_ip_eq(iph->daddr, myip) ) {
+            std::cout << "#notmypacket" << std::endl;
+            free(buf);
+            return;
+        }
+
+
+        //  print out the ethernet header
+        std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
         std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
+
+        print_mac_header(mhdr);
 
         investigate_packet(data);
 
@@ -133,8 +144,9 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
     const ethernet_header *ehdr = reinterpret_cast<const ethernet_header *>(data);
 
     //	this is actually 0x0800 in the spec, but on little endian, this reverses
-    switch (ehdr->type) {
-        case 0x0008: {
+    //  note that ethernet follows big endian byte order for the network, as opposed to wifi
+    switch (ntohs(ehdr->type)) {
+        case 0x0800: {
 //            std::cout << "ether type: IP" << std::endl;
 
             char *buf = static_cast<char *>(malloc(len + 8 - sizeof(ethernet_header)));
@@ -155,7 +167,7 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
             message_port_pub(pmt::mp("to wifi"), pmt::cons(pmt::PMT_NIL, blob));
             break;
         }
-        case 0x0608:
+        case 0x0806:
 //            std::cout << "ether type: ARP " << std::endl;
             break;
         default:

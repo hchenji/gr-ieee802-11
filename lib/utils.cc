@@ -307,6 +307,16 @@ print_ip(__be32 addr) {
 	std::cout << std::endl;
 }
 
+bool
+check_ip_eq(__be32 addr, uint8_t * add1) {
+
+    for (int i = 0; i < 4; i++) {
+        if ( (((unsigned char *) &addr)[i]) != add1[i] )
+            return false;
+    }
+    return true;
+}
+
 void print_ipv4(uint8_t * data) {
 
 	struct iphdr * iph = (struct iphdr *) (data);
@@ -381,7 +391,7 @@ void handle_icmp(uint8_t *payload, uint8_t ihl, uint16_t tot_len) {
 void print_mac_header(const struct mac_header * mhdr) {
 
     printf("\n\t>>> 802.11 MAC header\n");
-    printf("\tframecont %u\tduration %u\tseqnr %u\n", ntohs(mhdr->frame_control), ntohs(mhdr->duration), ntohs(mhdr->seq_nr));
+    printf("\tframecont %u\tduration %u\tseqnr %u\n", le16toh(mhdr->frame_control), le16toh(mhdr->duration), le16toh(mhdr->seq_nr));
 
     printf("\n");
 
