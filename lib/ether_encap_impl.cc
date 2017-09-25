@@ -42,88 +42,30 @@ ether_encap_impl::ether_encap_impl(bool debug) :
 void
 ether_encap_impl::from_wifi(pmt::pmt_t msg) {
 
+    //  this is the message from the mac.cc block
     msg = pmt::cdr(msg);
 
     int data_len = pmt::blob_length(msg);
 
+    //  this data HAS THE 14 bytes of ethernet header
+    uint8_t * data = (uint8_t *) pmt::blob_data(msg);
 
-    const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
+    //  print out the ethernet header
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
+    std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
 
-    if (d_last_seq == mhdr->seq_nr) {
-        dout << "Ether Encap: frame already seen -- skipping" << std::endl;
-        return;
-    }
+//    print_mac_header(mhdr);
 
-    d_last_seq = mhdr->seq_nr;
-
-    if (data_len < 33) {
-        dout << "Ether Encap: frame too short to parse (<33)" << std::endl;
-        return;
-    }
-
-    // this is more than needed
-    char *buf = static_cast<char *>(std::malloc(data_len + sizeof(ethernet_header)));
-    ethernet_header *ehdr = reinterpret_cast<ethernet_header *>(buf);
-
-    if (((mhdr->frame_control >> 2) & 3) != 2) {
-        dout << "this is not a data frame -- ignoring" << std::endl;
-        return;
-    }
-
-    std::memcpy(ehdr->dest, mhdr->addr1, 6);
-    std::memcpy(ehdr->src, mhdr->addr2, 6);
-    ehdr->type = 0x0008;
-
-    char *frame = (char *) pmt::blob_data(msg);
-
-    // DATA
-    if ((((mhdr->frame_control) >> 2) & 63) == 2) {
-
-        uint8_t * data = (uint8_t *) (pmt::blob_data(msg));
-
-        //  skip mac_header (24 bytes of wifi header) and the LLC header (8 bytes)
-        data += (24 + 8);
-
-        struct iphdr *iph = (struct iphdr *) (data);
-
-        uint8_t myip[] = {192, 168, 200, 1};
-        if (! check_ip_eq(iph->daddr, myip) ) {
-            std::cout << "#notmypacket" << std::endl;
-            free(buf);
-            return;
-        }
+    investigate_packet(data + 14);
 
 
-        //  print out the ethernet header
-        std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
-
-        std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
-
-        print_mac_header(mhdr);
-
-        investigate_packet(data);
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
 
-        std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+//    pmt::pmt_t blob = pmt::make_blob(msg);
+    message_port_pub(pmt::mp("to tap"), pmt::cons(pmt::PMT_NIL, msg));
 
-
-
-        //	strip 802.11 header, add wired 802.11 header for tun/tap interface
-        memcpy(buf + sizeof(ethernet_header), frame + 32, data_len - 32);
-        pmt::pmt_t payload = pmt::make_blob(buf, data_len - 32 + 14);
-        message_port_pub(pmt::mp("to tap"), pmt::cons(pmt::PMT_NIL, payload));
-
-        // QoS Data
-    } else if ((((mhdr->frame_control) >> 2) & 63) == 34) {
-
-        //	strip 802.11 header, add wired 802.11 header for tun/tap interface
-        memcpy(buf + sizeof(ethernet_header), frame + 34, data_len - 34);
-        pmt::pmt_t payload = pmt::make_blob(buf, data_len - 34 + 14);
-        message_port_pub(pmt::mp("to tap"), pmt::cons(pmt::PMT_NIL, payload));
-    }
-
-    free(buf);
 }
 
 

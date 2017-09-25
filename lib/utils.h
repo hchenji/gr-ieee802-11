@@ -150,4 +150,6 @@ void print_mac_header(const struct mac_header * mhdr);
 
 bool check_ip_eq(__be32 addr, uint8_t * add1);
 
+bool check_mac_eq(const uint8_t * addr1, uint8_t * addr2);
+
 #endif /* INCLUDED_IEEE802_11_UTILS_H */

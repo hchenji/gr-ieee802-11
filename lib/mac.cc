@@ -38,11 +38,14 @@ class mac_impl : public mac {
 
 public:
 
-mac_impl(std::vector<uint8_t> src_mac, std::vector<uint8_t> dst_mac, std::vector<uint8_t> bss_mac) :
+mac_impl(std::vector<uint8_t> src_mac, std::vector<uint8_t> dst_mac, std::vector<uint8_t> bss_mac, bool debug) :
 		block("mac",
 			gr::io_signature::make(0, 0, 0),
 			gr::io_signature::make(0, 0, 0)),
-		d_seq_nr(0) {
+        d_debug(debug),
+        d_seq_nr(0),
+        d_last_seq(0)
+{
 
 	message_port_register_out(pmt::mp("phy out"));
 	message_port_register_out(pmt::mp("app out"));
@@ -70,14 +73,76 @@ void phy_in (pmt::pmt_t msg) {
 		throw std::runtime_error("PMT must be blob");
 	}
 
-	// strip MAC header
-	// TODO: check for frame type to determine header size
-	pmt::pmt_t blob(pmt::cdr(msg));
-	const char *mpdu = reinterpret_cast<const char *>(pmt::blob_data(blob));
-//	std::cout << "pdu len " << pmt::blob_length(blob) << std::endl;
-	pmt::pmt_t msdu = pmt::make_blob(mpdu + 24, pmt::blob_length(blob) - 24);
+    //  get a reference to the actual bytes
+    msg = pmt::cdr(msg);
 
-//	message_port_pub(pmt::mp("app out"), pmt::cons(pmt::car(msg), msdu));
+    int data_len = pmt::blob_length(msg);
+
+
+    const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
+
+
+    //  TODO: wifi seq_nr
+    if (d_last_seq == mhdr->seq_nr) {
+        dout << "Ether Encap: frame already seen -- skipping" << std::endl;
+        return;
+    }
+
+    d_last_seq = mhdr->seq_nr;
+
+    if (data_len < 33) {
+        dout << "Ether Encap: frame too short to parse (<33)" << std::endl;
+        return;
+    }
+
+    //  source mac of the frame has to be equal to some other mac address, else it's an echo
+    if ( check_mac_eq(mhdr->addr2, d_src_mac) ) {
+        std::cout << "#notmypacket" << std::endl;
+        return;
+    }
+
+    // this is more than needed
+    char *buf = static_cast<char *>(std::malloc(data_len + sizeof(ethernet_header)));
+    ethernet_header *ehdr = reinterpret_cast<ethernet_header *>(buf);
+
+    if (((mhdr->frame_control >> 2) & 3) != 2) {
+        std::cout << "this is not a data frame -- ignoring" << std::endl;
+        return;
+    }
+
+    //  add the 14 bytes of ethernet header to buf
+    std::memcpy(ehdr->dest, mhdr->addr1, 6);
+    std::memcpy(ehdr->src, mhdr->addr2, 6);
+    ehdr->type = 0x0008;
+
+    char *frame = (char *) pmt::blob_data(msg);
+
+    // DATA
+    if ((((mhdr->frame_control) >> 2) & 63) == 2) {
+
+        //	strip 802.11 header, add wired 802.11 header for tun/tap interface
+        memcpy(buf + sizeof(ethernet_header), frame + 32, data_len - 32);
+        pmt::pmt_t payload = pmt::make_blob(buf, data_len - 32 + 14);
+        message_port_pub(pmt::mp("app out"), pmt::cons(pmt::PMT_NIL, payload));
+
+        // QoS Data
+    } else if ((((mhdr->frame_control) >> 2) & 63) == 34) {
+
+        //	strip 802.11 header, add wired 802.11 header for tun/tap interface
+        memcpy(buf + sizeof(ethernet_header), frame + 34, data_len - 34);
+        pmt::pmt_t payload = pmt::make_blob(buf, data_len - 34 + 14);
+        message_port_pub(pmt::mp("app out"), pmt::cons(pmt::PMT_NIL, payload));
+    }
+
+    free(buf);
+
+
+//	pmt::pmt_t blob(pmt::cdr(msg));
+//	const char *mpdu = reinterpret_cast<const char *>(pmt::blob_data(blob));
+////	std::cout << "pdu len " << pmt::blob_length(blob) << std::endl;
+//	pmt::pmt_t msdu = pmt::make_blob(mpdu + 24, pmt::blob_length(blob) - 24);
+//
+////	message_port_pub(pmt::mp("app out"), pmt::cons(pmt::car(msg), msdu));
 }
 
 void app_in (pmt::pmt_t msg) {
@@ -87,7 +152,6 @@ void app_in (pmt::pmt_t msg) {
 	std::string  str;
 
 	//	at this point, msg contains the LLC header only. ethernet header is stripped out in ether_encap_impl
-
 	if(pmt::is_symbol(msg)) {
 
 		str = pmt::symbol_to_string(msg);
@@ -176,14 +240,16 @@ bool check_mac(std::vector<uint8_t> mac) {
 
 private:
 	uint16_t d_seq_nr;
-	uint8_t d_src_mac[6];
+    uint16_t d_last_seq;
+    bool d_debug;
+    uint8_t d_src_mac[6];
 	uint8_t d_dst_mac[6];
 	uint8_t d_bss_mac[6];
 	uint8_t d_psdu[1528];
 };
 
 mac::sptr
-mac::make(std::vector<uint8_t> src_mac, std::vector<uint8_t> dst_mac, std::vector<uint8_t> bss_mac) {
-	return gnuradio::get_initial_sptr(new mac_impl(src_mac, dst_mac, bss_mac));
+mac::make(std::vector<uint8_t> src_mac, std::vector<uint8_t> dst_mac, std::vector<uint8_t> bss_mac, bool debug) {
+	return gnuradio::get_initial_sptr(new mac_impl(src_mac, dst_mac, bss_mac, debug));
 }
 

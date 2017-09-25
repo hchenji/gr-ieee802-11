@@ -317,6 +317,16 @@ check_ip_eq(__be32 addr, uint8_t * add1) {
     return true;
 }
 
+bool
+check_mac_eq(const uint8_t * addr1, uint8_t * addr2) {
+
+    for (int i = 0; i < 6; i++) {
+        if ( addr1[i] != addr2[i] )
+            return false;
+    }
+    return true;
+}
+
 void print_ipv4(uint8_t * data) {
 
 	struct iphdr * iph = (struct iphdr *) (data);
