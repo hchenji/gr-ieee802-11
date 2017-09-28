@@ -289,12 +289,23 @@ print_decbytes(uint8_t * buf, int length) {
 	for (int i = 0; i < length; i++) {
 
 		if ((buf[i] > 31) && (buf[i] < 127)) {
-			printf("%02X (%c) ", (unsigned char) buf[i], (unsigned char) buf[i]);
-		} else {
-			printf("%02X (%u) ", (unsigned char) buf[i], (unsigned char) buf[i]);
+			printf("%c", (unsigned char) buf[i]);
 		}
 
 	}
+
+    printf("\n\n\t");
+
+    for (int i = 0; i < length; i++) {
+
+        if ((buf[i] > 31) && (buf[i] < 127)) {
+            printf("%02X (%c) ", (unsigned char) buf[i], (unsigned char) buf[i]);
+        } else {
+            printf("%02X (%u) ", (unsigned char) buf[i], (unsigned char) buf[i]);
+        }
+
+    }
+
 	std::cout << std::endl;
 }
 
