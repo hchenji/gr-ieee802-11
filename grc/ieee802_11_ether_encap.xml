@@ -5,7 +5,7 @@
 	<key>ieee802_11_ether_encap</key>
 	<category>[IEEE802.11]</category>
 	<import>import ieee802_11</import>
-	<make>ieee802_11.ether_encap($debug)</make>
+	<make>ieee802_11.ether_encap($debug, $src_mac)</make>
 
 	<param>
 		<name>Debug</name>
@@ -21,6 +21,13 @@
 			<name>Disable</name>
 			<key>False</key>
 		</option>
+	</param>
+	
+	<param>
+		<name>SRC MAC</name>
+		<key>src_mac</key>
+		<value>[0x12, 0x34, 0x56, 0x78, 0x90, 0xab]</value>
+		<type>int_vector</type>
 	</param>
 
 	<sink>
