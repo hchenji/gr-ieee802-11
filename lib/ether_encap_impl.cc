@@ -23,7 +23,7 @@
 
 using namespace gr::ieee802_11;
 
-ether_encap_impl::ether_encap_impl(bool debug) :
+ether_encap_impl::ether_encap_impl(bool debug, std::vector<uint8_t> src_mac) :
         block("ether_encap",
               gr::io_signature::make(0, 0, 0),
               gr::io_signature::make(0, 0, 0)),
@@ -37,6 +37,13 @@ ether_encap_impl::ether_encap_impl(bool debug) :
     set_msg_handler(pmt::mp("from tap"), boost::bind(&ether_encap_impl::from_tap, this, _1));
     message_port_register_in(pmt::mp("from wifi"));
     set_msg_handler(pmt::mp("from wifi"), boost::bind(&ether_encap_impl::from_wifi, this, _1));
+    
+    //Read in mac for echo filtering in debug.
+    
+    for(int i = 0; i < src_mac.size(); i++) {
+        d_src_mac[i] = src_mac[i];
+        std::cout<<"mac: " << src_mac[i] << std::endl;
+    }
 }
 
 void
@@ -161,7 +168,7 @@ void ether_encap_impl::investigate_packet(uint8_t *data) {
 
 
 ether_encap::sptr
-ether_encap::make(bool debug) {
-    return gnuradio::get_initial_sptr(new ether_encap_impl(debug));
+ether_encap::make(bool debug, std::vector<uint8_t> src_mac) {
+    return gnuradio::get_initial_sptr(new ether_encap_impl(debug, src_mac));
 }
 
