@@ -42,56 +42,30 @@ ether_encap_impl::ether_encap_impl(bool debug) :
 void
 ether_encap_impl::from_wifi(pmt::pmt_t msg) {
 
+    //  this is the message from the mac.cc block
     msg = pmt::cdr(msg);
 
     int data_len = pmt::blob_length(msg);
-    const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
 
-    if (d_last_seq == mhdr->seq_nr) {
-        dout << "Ether Encap: frame already seen -- skipping" << std::endl;
-        return;
-    }
+    //  this data HAS THE 14 bytes of ethernet header
+    uint8_t * data = (uint8_t *) pmt::blob_data(msg);
 
-    d_last_seq = mhdr->seq_nr;
+    //  print out the ethernet header
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
-    if (data_len < 33) {
-        dout << "Ether Encap: frame too short to parse (<33)" << std::endl;
-        return;
-    }
+    std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
 
-    // this is more than needed
-    char *buf = static_cast<char *>(std::malloc(data_len + sizeof(ethernet_header)));
-    ethernet_header *ehdr = reinterpret_cast<ethernet_header *>(buf);
+//    print_mac_header(mhdr);
 
-    if (((mhdr->frame_control >> 2) & 3) != 2) {
-        dout << "this is not a data frame -- ignoring" << std::endl;
-        return;
-    }
+    investigate_packet(data + 14);
 
-    std::memcpy(ehdr->dest, mhdr->addr1, 6);
-    std::memcpy(ehdr->src, mhdr->addr2, 6);
-    ehdr->type = 0x0008;
 
-    char *frame = (char *) pmt::blob_data(msg);
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
-    // DATA
-    if ((((mhdr->frame_control) >> 2) & 63) == 2) {
 
-        //	strip 802.11 header, add wired 802.11 header for tun/tap interface
-        memcpy(buf + sizeof(ethernet_header), frame + 32, data_len - 32);
-        pmt::pmt_t payload = pmt::make_blob(buf, data_len - 32 + 14);
-        message_port_pub(pmt::mp("to tap"), pmt::cons(pmt::PMT_NIL, payload));
+//    pmt::pmt_t blob = pmt::make_blob(msg);
+    message_port_pub(pmt::mp("to tap"), pmt::cons(pmt::PMT_NIL, msg));
 
-        // QoS Data
-    } else if ((((mhdr->frame_control) >> 2) & 63) == 34) {
-
-        //	strip 802.11 header, add wired 802.11 header for tun/tap interface
-        memcpy(buf + sizeof(ethernet_header), frame + 34, data_len - 34);
-        pmt::pmt_t payload = pmt::make_blob(buf, data_len - 34 + 14);
-        message_port_pub(pmt::mp("to tap"), pmt::cons(pmt::PMT_NIL, payload));
-    }
-
-    free(buf);
 }
 
 
@@ -100,11 +74,21 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
     size_t len = pmt::blob_length(pmt::cdr(msg));
     const char *data = static_cast<const char *>(pmt::blob_data(pmt::cdr(msg)));
 
+    //  print out the ethernet header
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+
+    std::cout << "this is the packet of len " << len << " in the from_tap function" << std::endl;
+
+    investigate_packet((uint8_t *) (data + sizeof(ethernet_header)));
+
+    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+
     const ethernet_header *ehdr = reinterpret_cast<const ethernet_header *>(data);
 
     //	this is actually 0x0800 in the spec, but on little endian, this reverses
-    switch (ehdr->type) {
-        case 0x0008: {
+    //  note that ethernet follows big endian byte order for the network, as opposed to wifi
+    switch (ntohs(ehdr->type)) {
+        case 0x0800: {
 //            std::cout << "ether type: IP" << std::endl;
 
             char *buf = static_cast<char *>(malloc(len + 8 - sizeof(ethernet_header)));
@@ -125,7 +109,7 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
             message_port_pub(pmt::mp("to wifi"), pmt::cons(pmt::PMT_NIL, blob));
             break;
         }
-        case 0x0608:
+        case 0x0806:
 //            std::cout << "ether type: ARP " << std::endl;
             break;
         default:
@@ -135,6 +119,46 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
 
 
 }
+
+void ether_encap_impl::investigate_packet(uint8_t *data) {
+
+    print_ipv4(data);
+
+    struct iphdr *iph = (struct iphdr *) (data);
+
+    uint8_t ihl = iph->ihl;
+
+    uint8_t * transport_payload = (uint8_t *) (data + ihl * 4);
+
+    switch (iph->protocol) {
+
+        case 1: {
+            //  this is ICMP
+            handle_icmp(transport_payload, ihl, ntohs(iph->tot_len));
+            break;
+        }
+
+        case 6: {
+            //  this is TCP
+            handle_tcp(transport_payload, ihl, ntohs(iph->tot_len));
+            break;
+        }
+
+        case 17: {
+            //  this is UDP
+            handle_udp(transport_payload);
+            break;
+        }
+
+        default:
+            printf("\n\tnot TCP or IP!!\n");
+            break;
+    }
+
+
+}
+
+
 
 ether_encap::sptr
 ether_encap::make(bool debug) {

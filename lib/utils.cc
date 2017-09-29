@@ -20,6 +20,8 @@
 #include <cstring>
 #include <math.h>
 
+
+
 ofdm_param::ofdm_param(Encoding e) {
 	encoding = e;
 
@@ -256,4 +258,162 @@ void generate_bits(const char *psdu, char *data_bits, frame_param &frame) {
 			data_bits[i * 8 + b] = !!(psdu[i] & (1 << b));
 		}
 	}
+}
+
+
+void
+print_allascii(char *buf, int length) {
+
+	for (int i = 0; i < length; i++) {
+		printf("%02X ", (unsigned char) buf[i]);
+	}
+	std::cout << std::endl;
+}
+
+
+//    void print_allascii(char *buf, int length) {
+//
+//        std::cout << std::setfill('0') << std::hex << std::setw(2);
+//
+//        for (int i = 0; i < length; i++) {
+//            std::cout << (int) buf[i] << " ";
+//        }
+//
+//        std::cout << std::dec << std::endl;
+//
+//    }
+
+void
+print_decbytes(uint8_t * buf, int length) {
+
+	for (int i = 0; i < length; i++) {
+
+		if ((buf[i] > 31) && (buf[i] < 127)) {
+			printf("%c", (unsigned char) buf[i]);
+		}
+
+	}
+
+    printf("\n\n\t");
+
+    for (int i = 0; i < length; i++) {
+
+        if ((buf[i] > 31) && (buf[i] < 127)) {
+            printf("%02X (%c) ", (unsigned char) buf[i], (unsigned char) buf[i]);
+        } else {
+            printf("%02X (%u) ", (unsigned char) buf[i], (unsigned char) buf[i]);
+        }
+
+    }
+
+	std::cout << std::endl;
+}
+
+void
+print_ip(__be32 addr) {
+
+	for (int i = 0; i < 4; i++) {
+		printf("%u.", ((unsigned char *) &addr)[i]);
+	}
+	std::cout << std::endl;
+}
+
+bool
+check_ip_eq(__be32 addr, uint8_t * add1) {
+
+    for (int i = 0; i < 4; i++) {
+        if ( (((unsigned char *) &addr)[i]) != add1[i] )
+            return false;
+    }
+    return true;
+}
+
+bool
+check_mac_eq(const uint8_t * addr1, uint8_t * addr2) {
+
+    for (int i = 0; i < 6; i++) {
+        if ( addr1[i] != addr2[i] )
+            return false;
+    }
+    return true;
+}
+
+void print_ipv4(uint8_t * data) {
+
+	struct iphdr * iph = (struct iphdr *) (data);
+
+	printf("\t>>>> IPv4 header of size %u bytes\n", (iph->ihl) * 4);
+	printf("\tversion: %u\n", iph->version);
+	printf("\tIHL: %u\n", iph->ihl);
+	printf("\tdscp: %u\n", iph->tos >> 2);
+	printf("\tECN: %u\n", iph->tos & 0x03);
+	printf("\tlength: %d\n", ntohs(iph->tot_len));
+	printf("\tID: %u\n", ntohs(iph->id));
+	printf("\tflags: %u\n", ntohs(iph->frag_off) >> 13);
+	printf("\tfragoffset: %hu\n", ntohs(iph->frag_off) & 0x1FFF);
+	printf("\tTTL: %d\n", iph->ttl);
+	printf("\tprotocol: %u\n", iph->protocol);
+
+	printf("\tsrc IP: ");
+	print_ip(iph->saddr);
+
+	printf("\tdst IP: ");
+	print_ip(iph->daddr);
+}
+
+void handle_tcp(uint8_t *buf, uint8_t ihl, uint16_t tot_ip_len) {
+
+	struct tcphdr * tcph = (struct tcphdr *) (buf);
+
+	printf("\n\t>>> TCP header of size %u bytes\n", (tcph->doff) * 4);
+	printf("\tsrc %u\tdst %u\n", ntohs(tcph->source), ntohs(tcph->dest));
+	printf("\tseq %u\tack %u\n", ntohl(tcph->seq), ntohl(tcph->ack_seq));
+	printf("\tsyn %u\tack %u\n", tcph->syn, tcph->ack);
+	printf("\tfin %u\trst %u\n", tcph->fin, tcph->rst);
+
+	printf("\n");
+
+	uint8_t * data = buf + tcph->doff * 4;
+	uint32_t data_len = tot_ip_len - ihl * 4 - tcph->doff * 4;
+
+	printf("\tPayload length %u, data is:\n\t", data_len);
+	print_decbytes(data, data_len);
+
+}
+
+void handle_udp(uint8_t * buf) {
+
+	struct udphdr * udph = (struct udphdr *) (buf);
+
+	printf("\n\t>>> UDP header of size 8 bytes\n");
+	printf("\tsrc %u\tdst %u\n", ntohs(udph->source), ntohs(udph->dest));
+    printf("\ttot_len %u\tchk %u\n", ntohs(udph->len), udph->check);
+
+	printf("\n");
+
+	uint8_t * data = buf + 8;
+	uint32_t data_len = ntohs(udph->len) - 8; // UDP length field INCLUDES the header
+
+	printf("\tPayload length %u, data is:\n\t", data_len);
+	print_decbytes(data, data_len);
+
+}
+
+void handle_icmp(uint8_t *payload, uint8_t ihl, uint16_t tot_len) {
+
+	struct icmphdr * icmph = (struct icmphdr *) (payload);
+
+	printf("\n\t>>> ICMP header\n");
+	printf("\ttype %u\tcode %u\n", icmph->type, icmph->code);
+	printf("\n");
+
+}
+
+void print_mac_header(const struct mac_header * mhdr) {
+
+    printf("\n\t>>> 802.11 MAC header\n");
+    printf("\tframecont %u\tduration %u\tseqnr %u\n", le16toh(mhdr->frame_control), le16toh(mhdr->duration), le16toh(mhdr->seq_nr));
+
+    printf("\n");
+
 }

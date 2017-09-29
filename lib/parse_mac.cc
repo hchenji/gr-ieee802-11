@@ -22,8 +22,6 @@
 #include <string>
 #include <arpa/inet.h>
 #include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
 
 using namespace gr::ieee802_11;
 
@@ -38,6 +36,8 @@ public:
             d_log(log), d_last_seq_no(-1),
             d_debug(debug) {
 
+        d_debug = false;
+
         message_port_register_in(pmt::mp("in"));
         set_msg_handler(pmt::mp("in"), boost::bind(&parse_mac_impl::parse, this, _1));
 
@@ -49,102 +49,7 @@ public:
     }
 
 
-    void
-    print_allascii(char *buf, int length) {
 
-        for (int i = 0; i < length; i++) {
-            printf("%02X ", (unsigned char) buf[i]);
-        }
-        std::cout << std::endl;
-    }
-
-
-//    void print_allascii(char *buf, int length) {
-//
-//        std::cout << std::setfill('0') << std::hex << std::setw(2);
-//
-//        for (int i = 0; i < length; i++) {
-//            std::cout << (int) buf[i] << " ";
-//        }
-//
-//        std::cout << std::dec << std::endl;
-//
-//    }
-
-    void
-    print_decbytes(uint8_t * buf, int length) {
-
-        for (int i = 0; i < length; i++) {
-
-            if ((buf[i] > 31) && (buf[i] < 127)) {
-                printf("%02X (%c) ", (unsigned char) buf[i], (unsigned char) buf[i]);
-            } else {
-                printf("%02X (%u) ", (unsigned char) buf[i], (unsigned char) buf[i]);
-            }
-
-        }
-        std::cout << std::endl;
-    }
-
-    void
-    print_ip(__be32 addr) {
-
-        for (int i = 0; i < 4; i++) {
-            printf("%u.", ((unsigned char *) &addr)[i]);
-        }
-        std::cout << std::endl;
-    }
-
-    void print_ipv4(struct iphdr *iph) {
-
-        printf("\t>>>> IPv4 header\n");
-        printf("\tversion: %u\n", iph->version);
-        printf("\tIHL: %u\n", iph->ihl);
-        printf("\tdscp: %u\n", iph->tos >> 2);
-        printf("\tECN: %u\n", iph->tos & 0x03);
-        printf("\tlength: %d\n", ntohs(iph->tot_len));
-        printf("\tID: %u\n", ntohs(iph->id));
-        printf("\tflags: %u\n", ntohs(iph->frag_off) >> 13);
-        printf("\tfragoffset: %hu\n", ntohs(iph->frag_off) & 0x1FFF);
-        printf("\tTTL: %d\n", iph->ttl);
-        printf("\tprotocol: %u\n", iph->protocol);
-
-        printf("\tsrc IP: ");
-        print_ip(iph->saddr);
-
-        printf("\tdst IP: ");
-        print_ip(iph->daddr);
-    }
-
-    void handle_tcp(uint8_t *buf, uint8_t ihl, uint16_t tot_ip_len) {
-
-        struct tcphdr * tcph = (struct tcphdr *) (buf);
-
-        printf("\n\t>>> TCP header\n");
-        printf("\tsrc %u\tdst %u\n", ntohs(tcph->source), ntohs(tcph->dest));
-        printf("\tseq %u\tack %u\n", ntohl(tcph->seq), ntohl(tcph->ack_seq));
-        printf("\tsyn %u\tack %u\n", tcph->syn, tcph->ack);
-        printf("\tfin %u\trst %u\n", tcph->fin, tcph->rst);
-
-        printf("\n");
-
-        uint8_t * data = buf + tcph->doff * 4;
-        uint32_t data_len = tot_ip_len - ihl * 4 - tcph->doff * 4;
-
-        printf("\tPayload length %u, data is:\n\t", data_len);
-        print_decbytes(data, data_len);
-
-
-
-    }
-
-    void handle_udp(uint8_t * buf) {
-
-        struct udphdr * udph = (struct udphdr *) (buf);
-
-        printf("\n\t>>> UDP header\n");
-        printf("\tsrc %u\tdst %u\n", ntohs(udph->source), ntohs(udph->dest));
-    }
 
     void parse(pmt::pmt_t msg) {
 
@@ -198,55 +103,53 @@ public:
         // DATA
         if ((((h->frame_control) >> 2) & 63) == 2) {
 
-            //  sizeof mac_header is 24
+//              sizeof mac_header is 24
             print_ascii(frame + 24, data_len - 24);
 
             // IMPORTANT: first 8 bytes are LLC header. ip packet starts at frame+sizeof(mac_header)+sizeof(llc_header) = frame+24+8=32
             struct llc_header * lhdr = (struct llc_header *) (frame + 24);
 
-            //  EtherType for IP is 0x0800
+            //  EtherType for IPv4 is 0x0800
             if (0x0800 != ntohs(lhdr->type))
                 return;
 
-            //  there is an IP packet inside this frame
-            printf("------------------------------------------------------\n\n");
-
-//            printf("raw decimal bytes\n");
-//            print_decbytes(frame + 24 + 8, data_len - 24 - 8);
-
-//            printf("\tall hex bytes\n\t");
-//            print_allascii(frame + 24 + 8, data_len - 24 - 8);
-
-            struct iphdr *iph;
-
-            iph = (struct iphdr *) (frame + 24 + 8);
-
-            print_ipv4(iph);
-
-            uint8_t ihl = iph->ihl;
-
-            uint8_t *data = reinterpret_cast<uint8_t *>(frame + 24 + 8 + ihl * 4);
-
-            switch (iph->protocol) {
-
-                case 6: {
-                    //  this is TCP
-                    handle_tcp(data, ihl, ntohs(iph->tot_len));
-                    break;
-                }
-
-                case 17: {
-                    //  this is UDP
-                    handle_udp(data);
-                    break;
-                }
-
-                default:
-                    printf("\n\tnot TCP or IP!!\n");
-                    break;
-            }
-
-            printf("------------------------------------------------------\n");
+//            //  there is an IP packet inside this frame
+//            printf("------------------------------------------------------\n\n");
+//
+////            printf("raw decimal bytes\n");
+////            print_decbytes(frame + 24 + 8, data_len - 24 - 8);
+//
+////            printf("\tall hex bytes\n\t");
+////            print_allascii(frame + 24 + 8, data_len - 24 - 8);
+//
+//            print_ipv4(reinterpret_cast<uint8_t *>(frame + 24 + 8));
+//
+//            struct iphdr *iph = (struct iphdr *) (frame + 24 + 8);
+//
+//            uint8_t ihl = iph->ihl;
+//
+//            uint8_t *data = reinterpret_cast<uint8_t *>(frame + 24 + 8 + ihl * 4);
+//
+//            switch (iph->protocol) {
+//
+//                case 6: {
+//                    //  this is TCP
+//                    handle_tcp(data, ihl, ntohs(iph->tot_len));
+//                    break;
+//                }
+//
+//                case 17: {
+//                    //  this is UDP
+//                    handle_udp(data);
+//                    break;
+//                }
+//
+//                default:
+//                    printf("\n\tnot TCP or IP!!\n");
+//                    break;
+//            }
+//
+//            printf("------------------------------------------------------\n");
 
             // QoS Data
         } else if ((((h->frame_control) >> 2) & 63) == 34) {
