@@ -25,15 +25,15 @@ namespace gr {
         class ether_encap_impl : public ether_encap {
 
         public:
-            ether_encap_impl(bool debug);
+            ether_encap_impl(bool debug, std::vector<uint8_t> src_mac);
 
         private:
             void from_tap(pmt::pmt_t msg);
 
             void from_wifi(pmt::pmt_t msg);
 
-
             bool d_debug;
+            uint8_t d_src_mac[6];
             uint16_t d_last_seq;
 
             void investigate_packet(uint8_t *data);
