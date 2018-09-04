@@ -81,7 +81,6 @@ void phy_in (pmt::pmt_t msg) {
 
     const mac_header *mhdr = reinterpret_cast<const mac_header *>(pmt::blob_data(msg));
 
-
     //  TODO: wifi seq_nr
     if (d_last_seq == mhdr->seq_nr) {
         dout << "Ether Encap: frame already seen -- skipping" << std::endl;
@@ -97,7 +96,7 @@ void phy_in (pmt::pmt_t msg) {
 
     //  source mac of the frame has to be equal to some other mac address, else it's an echo
     if ( check_mac_eq(mhdr->addr2, d_src_mac) ) {
-        std::cout << "#notmypacket" << std::endl;
+        dout << "#notmypacket" << std::endl;
         return;
     }
 

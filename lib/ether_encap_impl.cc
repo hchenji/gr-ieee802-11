@@ -50,17 +50,16 @@ ether_encap_impl::from_wifi(pmt::pmt_t msg) {
     //  this data HAS THE 14 bytes of ethernet header
     uint8_t * data = (uint8_t *) pmt::blob_data(msg);
 
-    //  print out the ethernet header
-    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+    if (d_debug) {
+		//  print out the ethernet header
+		std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+		std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
 
-    std::cout << "this is the packet of len " << data_len << " in the from_wifi function " << std::endl;
+	//    print_mac_header(mhdr);
 
-//    print_mac_header(mhdr);
-
-    investigate_packet(data + 14);
-
-
-    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+		investigate_packet(data + 14);
+		std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+    }
 
 
 //    pmt::pmt_t blob = pmt::make_blob(msg);
@@ -74,14 +73,16 @@ ether_encap_impl::from_tap(pmt::pmt_t msg) {
     size_t len = pmt::blob_length(pmt::cdr(msg));
     const char *data = static_cast<const char *>(pmt::blob_data(pmt::cdr(msg)));
 
-    //  print out the ethernet header
-    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+    if (d_debug) {
+		//  print out the ethernet header
+		std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
-    std::cout << "this is the packet of len " << len << " in the from_tap function" << std::endl;
+		std::cout << "this is the packet of len " << len << " in the from_tap function" << std::endl;
 
-    investigate_packet((uint8_t *) (data + sizeof(ethernet_header)));
+		investigate_packet((uint8_t *) (data + sizeof(ethernet_header)));
 
-    std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+		std::cout << "\n\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" << std::endl;
+    }
 
     const ethernet_header *ehdr = reinterpret_cast<const ethernet_header *>(data);
 
